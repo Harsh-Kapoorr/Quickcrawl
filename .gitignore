@@ -44,6 +44,7 @@ Thumbs.db
 
 # Tooling caches
 .tsbuildinfo
+*.tsbuildinfo
 .playwright-cli/
 .vercel/
 

@@ -45,7 +45,7 @@ export function Navbar() {
     return (
       <header className="border-b border-border/60">
         <div className="mx-auto flex h-20 max-w-6xl items-center px-6">
-          <Link href="/welcome" className="transition-opacity hover:opacity-80">
+          <Link href="/" className="transition-opacity hover:opacity-80">
             <Logo size={48} showWordmark />
           </Link>
         </div>
