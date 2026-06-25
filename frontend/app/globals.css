@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  font-feature-settings: "ss01", "cv11";
+}
+
+html {
+  height: 100%;
+  background: theme("colors.bg.DEFAULT");
+}
+
+body {
+  min-height: 100%;
+  background: theme("colors.bg.DEFAULT");
+  color: theme("colors.fg.DEFAULT");
+  font-family: theme("fontFamily.sans");
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ----- Numeric (tabular) helper ----- */
+.font-numeric,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- Focus ring (visible, accent) ----- */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid theme("colors.accent.DEFAULT");
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ----- Scrollbar (subtle, dark) ----- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ----- Selection ----- */
+::selection {
+  background: theme("colors.accent.DEFAULT");
+  color: white;
+}
+
+/* ----- Reduced motion respect ----- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ----- Subtle dotted grid for landing pages ----- */
+.dot-grid {
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.06) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
+  background-position: 0 0;
+}
+
+/* ----- Faint top edge highlight for elevated cards ----- */
+.edge-top {
+  position: relative;
+}
+.edge-top::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
