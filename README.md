@@ -1,209 +1,161 @@
 # Quickcrawl
 
-Bulk-submit URLs to Google's [Indexing API](https://developers.google.com/search/apis/indexing-api/v3/quickstart) through your own verified Search Console properties. **100% client-side static app — every user's credentials and tokens live in their own browser.**
+> **Bulk-submit URLs to Google's [Indexing API](https://developers.google.com/search/apis/indexing-api/v3/quickstart) — 100% client-side, your credentials stay in your browser.**
 
-Bring your own Google OAuth client (BYO), paste it in once, and submit URLs. Everything is stored in `localStorage` on the user's own device — there is no server, no database, no admin.
+No server. No database. No vendor quota. You bring your own Google OAuth client, paste it in once, and submit URLs straight from the browser to Google's Indexing API.
 
-> MIT-licensed. Open source. Read the code, self-host, or use the hosted demo.
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript)](https://www.typescriptlang.org)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
 ---
 
-## How it works
+## Why
+
+If you publish content, you know the pain: Google discovers new URLs on its own schedule, and a fresh post can sit unindexed for days. The Indexing API lets you ask Google to crawl a URL right now — but Google's web UI only accepts 200/day and the official tooling assumes you have a backend.
+
+Quickcrawl is the missing frontend. Open the page, sign in with Google, paste URLs, hit submit. The calls go from your browser directly to Google's API. Nothing is stored anywhere except your own browser.
+
+## Features
+
+- **Direct browser → Google.** OAuth 2.0 + PKCE S256. No proxy.
+- **Bulk submit.** Paste a list, drop a `.txt`, or load URLs from a spreadsheet.
+- **Batch tracking.** Every submission is recorded with status (pending / submitted / failed), attempts, last error, and Google's `notifyTime`.
+- **Throttled to Google's limits.** 1 req/sec, 200/day. UI ring + soft dedup warnings when you try to re-submit.
+- **Search Console URL inspection.** Ask Google directly whether a URL is indexed.
+- **Multi-property support.** Sync all verified Search Console properties and submit to any of them.
+- **No server.** Static export. Host on Vercel, Netlify, Cloudflare Pages, GitHub Pages, S3 — anywhere that serves files.
+
+## Quick start
+
+```bash
+git clone https://github.com/Harsh-Kapoorr/Quickcrawl.git
+cd Quickcrawl/frontend
+pnpm install
+pnpm dev          # http://localhost:3000
+```
+
+Then open the app and follow the inline tutorial — it walks you through creating an OAuth client in Google Cloud Console and pasting the credentials in.
+
+> You need **one** Google account that is the **owner** of the Search Console properties you want to submit to.
+
+## Architecture
 
 ```
-Browser (HTTPS)
-   │
-   ├── localStorage  ← Client ID, Secret, Tokens, Properties, Jobs (yours only)
-   │
-   └── Direct calls to Google APIs
-         ├── accounts.google.com / oauth2.googleapis.com   (OAuth + PKCE)
-         ├── indexing.googleapis.com                       (publish URLs)
-         └── searchconsole.googleapis.com / webmasters    (list sites + inspect)
-
-Static site hosted on Vercel (or any static host).
-No backend. No DB. No cron. No env vars.
+┌──────────────────────── Browser ────────────────────────┐
+│                                                          │
+│  localStorage (yours only, never transmitted)            │
+│  ├── qc.google_credentials   Client ID + Secret          │
+│  ├── qc.google_tokens        Access + Refresh tokens      │
+│  ├── qc.properties           Search Console sites         │
+│  ├── qc.batches / qc.jobs    Submission history           │
+│  └── qc.quota               Daily submit count            │
+│                                                          │
+│  Direct calls → Google APIs                              │
+│  ├── accounts.google.com        OAuth consent             │
+│  ├── oauth2.googleapis.com      Token exchange (PKCE)     │
+│  ├── indexing.googleapis.com    URL publish               │
+│  └── searchconsole.googleapis.com  Site list + inspect   │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+        ▲                                                  ▲
+        │  static HTML / JS                                 │
+        │                                                  │
+  ┌─────┴──────┐                                  ┌────────┴────────┐
+  │  Your CDN  │   ←——— no backend —————          │  Google APIs   │
+  │  (Vercel,  │                                  │  (no Quickcrawl │
+  │   Netlify) │                                  │   server in the │
+  └────────────┘                                  │   middle)       │
+                                                   └─────────────────┘
 ```
 
-That's it. Deploy the static `out/` folder to anything that serves files.
+## Deploy
 
----
+### Vercel (one click)
 
-## What each user does (one time)
+1. Fork this repo.
+2. Import into Vercel — it detects Next.js automatically.
+3. Deploy. **No environment variables to set.**
 
-### 1. Create a Google Cloud OAuth client
+`vercel.json` ships with CSP, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy` headers already configured.
 
-1. Open [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials).
-2. Click **Create credentials → OAuth client ID**.
-3. Application type: **Web application**. Name it anything (e.g. `Quickcrawl`).
-4. Under **Authorized redirect URIs**, click **Add URI** and paste the URL of the app + `/welcome`:
-   ```
-   https://gsc-indexer.vercel.app/welcome
-   ```
-   (Use `http://localhost:3000/welcome` for local dev.)
-5. Click **Create**, then copy the **Client ID** and **Client secret**.
-
-### 2. Enable the required APIs
-
-[APIs & Services → Library](https://console.cloud.google.com/apis/library) → enable both:
-- **Indexing API**
-- **Search Console API**
-
-### 3. Set up the OAuth consent screen
-
-[APIs & Services → OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent):
-- User type: **External**
-- Scopes: `openid`, `email`, `profile`,
-  `https://www.googleapis.com/auth/indexing`,
-  `https://www.googleapis.com/auth/webmasters.readonly`
-- Add your Google account as a **test user**.
-
-### 4. Use the app
-
-1. Open the deployed app URL.
-2. Paste your **Client ID** and **Client secret** into the onboarding form. They're saved to your browser's `localStorage` only.
-3. Click **Continue with Google** and grant access.
-4. Click **Sync from Google** on the dashboard (or Settings) to load your verified Search Console sites.
-5. Paste URLs, hit **Submit**.
-
-That's the whole flow. Your Google account must be the **owner** of the Search Console properties you want to submit URLs for.
-
----
-
-## Deploy your own (one click)
-
-### Vercel
-
-1. Fork or clone this repo.
-2. Import into Vercel — it'll detect Next.js automatically.
-3. Deploy. That's it — no environment variables to set.
-
-The headers in `vercel.json` set CSP, `X-Frame-Options`, etc. for safety.
-
-### Any other static host
+### Any static host
 
 ```bash
 cd frontend
 pnpm install
-pnpm build      # outputs to ./out
+pnpm build      # static export → ./out
 ```
 
-Upload the contents of `out/` to any static host (Netlify, GitHub Pages, Cloudflare Pages, S3+CloudFront, etc.).
-
-### Local development
-
-```bash
-cd frontend
-pnpm install
-pnpm dev        # http://localhost:3000
-```
-
-When testing locally, set your OAuth client's redirect URI to `http://localhost:3000/welcome`.
-
----
-
-## How the data flows
-
-Everything lives in your browser's `localStorage` under these keys:
-
-| Key | Contents |
-|---|---|
-| `qc.google_credentials` | `{ client_id, client_secret, redirect_uri }` |
-| `qc.google_tokens` | `{ access_token, refresh_token, expires_at, email, … }` |
-| `qc.properties` | `[{ site_url, permission_level, last_synced }]` |
-| `qc.batches` | `[{ id, name, property_url, total, pending, succeeded, failed, … }]` |
-| `qc.jobs` | `[{ id, batch_id, url, status, attempts, last_error, … }]` |
-| `qc.quota` | `{ date, count }` |
-| `qc.oauth_state` | `{ state, code_verifier }` (transient) |
-
-Clearing browser data signs you out and wipes everything. Re-paste credentials and sign in again to start fresh.
-
-### OAuth flow (client-side)
-
-1. Click **Continue with Google**.
-2. App generates PKCE pair + random `state`, stashes them in `qc.oauth_state`.
-3. Browser navigates to Google's authorize endpoint with PKCE challenge.
-4. User grants consent.
-5. Google redirects back to `${origin}/welcome?code=…&state=…`.
-6. App detects the redirect, exchanges the `code` + verifier for tokens by calling `oauth2.googleapis.com/token` directly, and stashes the tokens in `qc.google_tokens`.
-7. App routes to the dashboard.
-
-The `client_secret` is sent to Google over HTTPS during the token exchange. It's never sent to any other origin. **If the user's machine or browser is compromised, the secret is exposed** — same risk as any local app storing credentials.
-
-### URL submission
-
-- One URL at a time, throttled to 1 req/sec on the client.
-- The 200/day cap is Google's server-side limit (we also track it client-side for the UI ring).
-- Failed requests (5xx, 429) show up as `failed` in the batch detail page; click **Retry** to re-submit.
-- 4xx errors are permanent (won't be auto-retried).
-
----
-
-## Limitations (intentional / scope)
-
-- **No cross-device sync.** If you switch browsers or clear localStorage, you re-enter credentials. This is the trade-off for "no server".
-- **No background queue.** If you close the tab mid-submission, the remaining URLs in that batch stay `pending` forever. Re-open the batch and click Retry on each, or submit a fresh batch.
-- **Google's 200/day quota is hard.** Server-enforced; we can't help you exceed it.
-- **No multi-account.** Each browser is one Google account. Sign out + sign in to switch.
-
----
-
-## Security
-
-| Concern | Mitigation |
-|---|---|
-| Stolen session cookie | Not applicable — no session cookies, all state in localStorage |
-| CSRF on OAuth callback | Random 256-bit `state`, one-shot |
-| Code interception | OAuth 2.0 PKCE S256 |
-| Subdomain injection | URL-aware property matching (scheme + host + path-boundary) |
-| Clickjacking | `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'` |
-| Content sniffing | `X-Content-Type-Options: nosniff` |
-| Compromised server | None — there is no server. The static host can't read user data. |
-| Quota exhaustion | Tracked client-side, recorded against your Google account |
-
-### Threats we explicitly don't defend against
-
-- A compromised browser or local machine — localStorage is plaintext at the OS level. Use a passphrase-locked OS profile.
-- A malicious browser extension with `localStorage` access.
-- A user who voluntarily exports their credentials.
-
----
+Upload `out/` to Netlify, Cloudflare Pages, GitHub Pages, S3 + CloudFront, or any host that serves files.
 
 ## Development
 
 ```bash
 cd frontend
-pnpm install
+
+pnpm dev          # http://localhost:3000  (HMR)
 pnpm typecheck    # tsc --noEmit
 pnpm build        # static export → ./out
-pnpm dev          # http://localhost:3000 (HMR)
 ```
 
-### Layout
+### Project layout
 
 ```
 frontend/
 ├── app/
 │   ├── layout.tsx                 root layout + fonts + navbar
 │   ├── page.tsx                   dashboard (URL submit + recent activity)
-│   ├── welcome/page.tsx           onboarding form + OAuth callback handler
-│   ├── batches/
-│   │   ├── page.tsx               batch history
-│   │   └── detail/page.tsx        single batch + per-job retry
-│   ├── inspect/page.tsx           Search Console URL inspection
-│   ├── settings/page.tsx          credentials, properties, danger zone
+│   ├── welcome/                   onboarding + OAuth callback
+│   ├── batches/                   batch history + per-job retry
+│   ├── inspect/                   Search Console URL inspection
+│   ├── settings/                  credentials, properties, danger zone
 │   └── globals.css
-├── components/                    React UI
+├── components/                    React UI (Card, Button, DropZone, …)
 ├── lib/
 │   ├── store.ts                   localStorage wrapper
-│   ├── google-client.ts           PKCE OAuth + Google API calls (all client-side)
-│   ├── api.ts                     type definitions only
+│   ├── google-client.ts           PKCE OAuth + Google API calls
+│   ├── api.ts                     type definitions
 │   └── utils.ts                   URL parsing + property matching
-├── next.config.js                 output: 'export'
-└── vercel.json                    headers (CSP, X-Frame-Options, etc.)
+├── public/                        static assets (logo, hero image)
+└── vercel.json                    security headers
 ```
 
----
+## Security
+
+| Concern | Mitigation |
+|---|---|
+| CSRF on OAuth callback | 256-bit random `state`, one-shot |
+| Authorization code interception | OAuth 2.0 PKCE S256 |
+| Subdomain-injection in URLs | URL-aware property matching (scheme + host + path-boundary) |
+| Clickjacking | `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'` |
+| Content sniffing | `X-Content-Type-Options: nosniff` |
+| Compromised server | N/A — there is no server. The static host can't read user data. |
+
+### Threats we don't defend against
+
+These are inherent to a client-side credential model and require user action to mitigate:
+
+- A compromised browser or local machine (localStorage is plaintext at the OS level). Use a passphrase-locked OS profile.
+- A malicious browser extension with `localStorage` access.
+- A user who voluntarily exports their credentials.
+
+> **Heads up:** your `client_secret` lives in your browser's `localStorage`. Same risk profile as any local app storing credentials — the trade-off for "no server, no vendor". If this is unacceptable for your threat model, don't use Quickcrawl.
+
+## Limitations (intentional)
+
+- **No cross-device sync.** Switching browsers or clearing `localStorage` means re-entering credentials. This is the price of "no server".
+- **No background queue.** Closing the tab mid-submission leaves remaining URLs `pending`. Re-open the batch and click Retry, or submit a fresh batch.
+- **Google's 200/day quota is hard.** Server-enforced; we can't help you exceed it.
+- **No multi-account.** Each browser is one Google account. Sign out + sign in to switch.
+
+## Contributing
+
+Issues and PRs welcome. The whole codebase is ~2k lines of TypeScript — read [`frontend/lib/google-client.ts`](frontend/lib/google-client.ts) for the OAuth + API layer and [`frontend/app/page.tsx`](frontend/app/page.tsx) for the submit flow.
+
+Please don't commit real OAuth credentials. The repo ships an `.env.example` template only.
 
 ## License
 
-MIT
+MIT © Quickcrawl contributors
